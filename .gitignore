@@ -43,6 +43,11 @@ dataset/
 dataset_augmented/
 dataset_augmented_v*/
 MFDS_AI_Development_Pill_Image_Dataset/
+pill_recognition_ai/dataset/
+pill_recognition_ai/dataset_augmented/
+pill_recognition_ai/dataset_augmented_v*/
+pill_recognition_ai/dataset_augmented_v2/
+pill_recognition_ai/dataset_augmented_v3/
 *.zip
 
 # Model files
@@ -57,6 +62,9 @@ yolo*.pt
 results/
 logs/
 wandb/
+pill_recognition_ai/results/
+pill_recognition_ai/logs/
+pill_recognition_ai/wandb/
 *.log
 
 # Data files
