@@ -1,0 +1,199 @@
+# 라즈베리파이 4 Model B 추론 최적화 설정
+
+# 모델 설정 (라즈베리파이 최적화)
+model:
+  # 학습용 모델 (RTX 3060Ti에서 사용)
+  training_model: "yolov8n.pt"  # 가장 가벼운 모델
+  pretrained: true
+  freeze_backbone: false
+
+# 학습 설정 (RTX 3060Ti 최적화)
+training:
+  # 기본 학습 파라미터
+  epochs: 150
+  batch_size: 8  # 8GB VRAM에 맞게 조정
+  learning_rate: 0.01
+  lr_final: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  warmup_momentum: 0.8
+  warmup_bias_lr: 0.1
+  
+  # 옵티마이저 설정
+  optimizer: "AdamW"  # AdamW가 메모리 효율적
+  cosine_lr: true
+  
+  # 조기 종료 설정
+  patience: 30
+  
+  # 저장 설정
+  save_period: 10
+  
+  # 디바이스 설정 (RTX 3060Ti 최적화)
+  device: "0"  # GPU 0번 사용
+  workers: 4  # CPU 코어 수에 맞게 조정
+  
+  # Weights & Biases 사용 여부
+  use_wandb: true
+  
+  # 데이터 증강 설정
+  augmentation:
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    rotation: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    mosaic: 1.0
+    mixup: 0.0
+    copy_paste: 0.0
+
+# 데이터 설정
+data:
+  # 학습용 이미지 크기 (RTX 3060Ti)
+  training_image_size: 640
+  
+  # 추론용 이미지 크기 (라즈베리파이 최적화)
+  inference_image_size: 416  # 라즈베리파이에 적합한 크기
+  
+  source_path: "../MFDS_AI_Development_Pill_Image_Dataset"
+  processed_path: "./dataset"
+  
+  # 클래스 정의
+  classes:
+    - "29002"
+    - "34342" 
+    - "37990"
+    - "39916"
+    - "40122"
+    - "40720"
+    - "40767"
+    - "40792"
+    - "40837"
+    - "40949"
+    - "40953"
+    - "40990"
+    - "40991"
+    - "41097"
+    - "41107"
+    - "41169"
+    - "41170"
+    - "41172"
+    - "41207"
+    - "41225"
+    - "41327"
+    - "41344"
+  
+  # 데이터 분할 비율
+  split_ratio:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  
+  # 데이터 증강 설정
+  augmentation:
+    # 다중 알약 합성 설정
+    multi_pill_synthesis:
+      enabled: true
+      max_pills_per_image: 5
+      min_pills_per_image: 2
+      background_variations: 10
+    
+    # 기본 증강 설정
+    basic_augmentation:
+      rotation: 15
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+
+# 라즈베리파이 4 Model B 추론 설정
+raspberry_pi:
+  # 하드웨어 사양
+  hardware:
+    cpu: "ARM Cortex-A72 (4 cores)"
+    ram: "4GB LPDDR4"
+    gpu: "VideoCore VI"
+    storage: "MicroSD (32GB+ 권장)"
+  
+  # 성능 목표
+  performance_targets:
+    fps: 5  # 라즈베리파이에서 달성 가능한 FPS
+    latency_ms: 200  # 허용 가능한 지연시간
+    memory_usage_mb: 512  # RAM 사용량 제한
+    cpu_usage_percent: 80  # CPU 사용률 제한
+  
+  # 모델 최적화 설정
+  model_optimization:
+    # 모델 크기 최적화
+    quantization: true  # INT8 양자화
+    pruning: true  # 불필요한 가중치 제거
+    distillation: false  # 지식 증류 (복잡함)
+    
+    # 추론 최적화
+    batch_size: 1  # 배치 크기 1로 고정
+    num_threads: 4  # CPU 스레드 수
+    use_gpu: false  # GPU 사용 안함 (VideoCore VI 지원 제한)
+    
+    # 메모리 최적화
+    memory_pool_size: 256  # MB
+    enable_memory_mapping: true
+    
+  # 내보내기 형식 우선순위
+  export_formats:
+    - "onnx"  # ONNX 형식 (라즈베리파이에서 가장 호환성 좋음)
+    - "tflite"  # TensorFlow Lite (모바일 최적화)
+    - "coreml"  # CoreML (Apple 기기용, 백업용)
+
+# 평가 설정
+evaluation:
+  # 평가 메트릭
+  metrics:
+    - "mAP@0.5"
+    - "mAP@0.5:0.95"
+    - "precision"
+    - "recall"
+    - "f1_score"
+  
+  # IoU 임계값
+  iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+  
+  # 신뢰도 임계값
+  confidence_threshold: 0.25
+
+# 추론 설정 (라즈베리파이 최적화)
+inference:
+  # 실시간 추론 설정
+  real_time:
+    target_fps: 5  # 라즈베리파이 목표 FPS
+    max_latency_ms: 200  # 최대 지연시간
+  
+  # 배치 추론 설정
+  batch:
+    batch_size: 1  # 라즈베리파이에서는 배치 크기 1
+    max_batch_size: 1
+  
+  # 후처리 설정
+  postprocessing:
+    nms_threshold: 0.45
+    confidence_threshold: 0.25
+    max_detections: 50  # 라즈베리파이에서는 감지 개수 제한
+  
+  # 라즈베리파이 특화 설정
+  raspberry_pi:
+    # 온도 관리
+    thermal_throttling: true
+    max_temperature: 80  # 섭씨
+    
+    # 전력 관리
+    power_saving_mode: true
+    cpu_governor: "ondemand"  # CPU 주파수 조절
+    
+    # 메모리 관리
+    swap_enabled: true
+    swap_size_mb: 1024

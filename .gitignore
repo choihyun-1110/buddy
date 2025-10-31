@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+pill_ai_env/
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Dataset
+dataset/
+dataset_augmented/
+dataset_augmented_v*/
+MFDS_AI_Development_Pill_Image_Dataset/
+*.zip
+
+# Model files
+*.pt
+*.pth
+*.onnx
+*.trt
+*.engine
+yolo*.pt
+
+# Results and logs
+results/
+logs/
+wandb/
+*.log
+
+# Data files
+*.pdf
+*.cache
+*.pkl
+*.h5
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# TensorBoard
+runs/
+*.tb
+
+# Weights & Biases
+.wandb/
+
+# Environment variables
+.env
+.env.local
+

@@ -1,0 +1,141 @@
+# YOLOv8 학습 설정
+
+# 모델 설정
+model:
+  model_name: "yolov8n.pt"  # yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt
+  pretrained: true
+  freeze_backbone: false
+
+# 학습 설정 (RTX 3060Ti 8GB VRAM 최적화)
+training:
+  # 기본 학습 파라미터
+  epochs: 150
+  batch_size: 8  # 8GB VRAM에 맞게 조정 (16 -> 8)
+  learning_rate: 0.01
+  lr_final: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  warmup_momentum: 0.8
+  warmup_bias_lr: 0.1
+  
+  # 옵티마이저 설정
+  optimizer: "AdamW"  # AdamW가 메모리 효율적
+  cosine_lr: true
+  
+  # 조기 종료 설정
+  patience: 30
+  
+  # 저장 설정
+  save_period: 10
+  
+  # 디바이스 설정 (RTX 3060Ti 최적화)
+  device: "0"  # GPU 0번 사용
+  workers: 4  # CPU 코어 수에 맞게 조정
+  
+  # Weights & Biases 사용 여부
+  use_wandb: true
+  
+  # 데이터 증강 설정
+  augmentation:
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    rotation: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    mosaic: 1.0
+    mixup: 0.0
+    copy_paste: 0.0
+
+# 데이터 설정 (RTX 3060Ti 최적화)
+data:
+  image_size: 640  # 8GB VRAM에 적합한 크기
+  source_path: "../MFDS_AI_Development_Pill_Image_Dataset"
+  processed_path: "./dataset"
+  
+  # 클래스 정의
+  classes:
+    - "29002"
+    - "34342" 
+    - "37990"
+    - "39916"
+    - "40122"
+    - "40720"
+    - "40767"
+    - "40792"
+    - "40837"
+    - "40949"
+    - "40953"
+    - "40990"
+    - "40991"
+    - "41097"
+    - "41107"
+    - "41169"
+    - "41170"
+    - "41172"
+    - "41207"
+    - "41225"
+    - "41327"
+    - "41344"
+  
+  # 데이터 분할 비율
+  split_ratio:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  
+  # 데이터 증강 설정
+  augmentation:
+    # 다중 알약 합성 설정
+    multi_pill_synthesis:
+      enabled: true
+      max_pills_per_image: 5
+      min_pills_per_image: 2
+      background_variations: 10
+    
+    # 기본 증강 설정
+    basic_augmentation:
+      rotation: 15
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+
+# 평가 설정
+evaluation:
+  # 평가 메트릭
+  metrics:
+    - "mAP@0.5"
+    - "mAP@0.5:0.95"
+    - "precision"
+    - "recall"
+    - "f1_score"
+  
+  # IoU 임계값
+  iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+  
+  # 신뢰도 임계값
+  confidence_threshold: 0.25
+
+# 추론 설정
+inference:
+  # 실시간 추론 설정
+  real_time:
+    target_fps: 15
+    max_latency_ms: 100
+  
+  # 배치 추론 설정
+  batch:
+    batch_size: 1
+    max_batch_size: 8
+  
+  # 후처리 설정
+  postprocessing:
+    nms_threshold: 0.45
+    confidence_threshold: 0.25
+    max_detections: 100
