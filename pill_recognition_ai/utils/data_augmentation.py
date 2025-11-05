@@ -342,7 +342,7 @@ class PillDataAugmenter:
                         if not pill_classes:
                             continue
                         
-                        # 다른 알약 이미지 수집 (클래스 ID는 0 또는 1로 제한)
+                        # 다른 알약 이미지 수집
                         other_images = []
                         other_classes = []
                         
@@ -354,16 +354,13 @@ class PillDataAugmenter:
                                     other_label_file = labels_dir / f"{other_img_file.stem}.txt"
                                     if other_label_file.exists():
                                         with open(other_label_file, 'r') as f:
-                                            lines = f.readlines()
-                                        if lines:
-                                            parts = lines[0].strip().split()
-                                            if len(parts) >= 5:
-                                                # 원본 클래스 ID를 0 또는 1로 매핑
-                                                original_class_id = int(parts[0])
-                                                # 클래스 ID를 0 또는 1로 제한 (pill_01=0, pill_02=1)
-                                                mapped_class_id = original_class_id % 2
-                                                other_images.append(other_pill_img)
-                                                other_classes.append(mapped_class_id)
+                                            label_lines = [line.strip().split() for line in f if line.strip()]
+
+                                        if label_lines:
+                                            # 여러 바운딩 박스가 존재할 경우 우선 첫 번째 클래스를 사용
+                                            original_class_id = int(label_lines[0][0])
+                                            other_images.append(other_pill_img)
+                                            other_classes.append(original_class_id)
                                 except:
                                     continue
                         

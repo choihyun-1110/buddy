@@ -34,7 +34,7 @@ training:
   workers: 4  # CPU 코어 수에 맞게 조정
   
   # Weights & Biases 사용 여부
-  use_wandb: true
+  use_wandb: false
   
   # 데이터 증강 설정
   augmentation:
