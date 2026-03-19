@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# 모델 가중치 (대용량 - Git LFS 또는 별도 관리)
+models/*.pt
+models/*.onnx
+models/*.tflite
+models/*.h5
+models/*.pkl
+*.weights
+
+# 데이터셋 (대용량)
+dataset/
+
+# 로그
+logs/
+
+# MediaPipe 모델 캐시
+*.task
+mouth_roi_tracker/models/*.task
+
+# 환경 설정
+.env
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
