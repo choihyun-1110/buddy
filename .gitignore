@@ -14,6 +14,10 @@ models/*.h5
 models/*.pkl
 *.weights
 
+# pill_recognition_ai - 학습 결과/데이터셋 (대용량)
+pill_recognition_ai/results/
+pill_recognition_ai/dataset/
+
 # 데이터셋 (대용량)
 dataset/
 
