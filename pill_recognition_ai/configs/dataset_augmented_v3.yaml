@@ -1,0 +1,28 @@
+path: C:/Users/User/Desktop/buudy/pill_recognition_ai/dataset_augmented_v3
+train: train/images
+val: val/images
+test: test/images
+nc: 22
+names:
+  - '29002'
+  - '34342'
+  - '37990'
+  - '39916'
+  - '40122'
+  - '40720'
+  - '40767'
+  - '40792'
+  - '40837'
+  - '40949'
+  - '40953'
+  - '40990'
+  - '40991'
+  - '41097'
+  - '41107'
+  - '41169'
+  - '41170'
+  - '41172'
+  - '41207'
+  - '41225'
+  - '41327'
+  - '41344'

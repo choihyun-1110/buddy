@@ -22,7 +22,7 @@ def _cup_overlapping_roi():
 
 
 def test_fsm_idle_without_roi_valid():
-    cfg = IngestionConfig(hand_min_frames=2, cup_min_frames=2, max_wait_hand_to_cup_sec=5, min_drinking_sec=0.5, drinking_fps=30)
+    cfg = IngestionConfig(hand_min_frames=2, cup_min_frames=2, max_wait_hand_to_cup_sec=5)
     fsm = IngestionSequenceDetector(config=cfg)
     out = fsm.update(mouth_roi=_roi(), roi_valid=False, hand_bboxes=[_hand_overlapping_roi()], cup_bbox=[], cup_conf=0, current_time_sec=0)
     assert out["state"] in ("IDLE", "FAIL")
@@ -33,7 +33,6 @@ def test_fsm_hand_to_mouth_then_cup():
     cfg = IngestionConfig(
         hand_min_frames=2,
         cup_min_frames=2,
-        hand_leave_required_before_cup=3,
         cup_contact_duration_frames=15,
         max_wait_hand_to_cup_sec=10,
     )
@@ -56,17 +55,25 @@ def test_fsm_hand_to_mouth_then_cup():
         out = fsm.update(roi, True, [], cup, 0.9, t)
         t += 0.033
     assert out["state"] == "CUP_TO_MOUTH"
-    # 컵 접촉 15프레임 → INGESTION_COMPLETE (O)
+    # 컵 접촉 15프레임
     for _ in range(15):
         out = fsm.update(roi, True, [], cup, 0.9, t)
         t += 0.033
+    assert out["state"] == "CUP_TO_MOUTH"
+    # 컵이 사라지면 → VERIFY
+    for _ in range(10):
+        out = fsm.update(roi, True, [], [], 0.0, t)
+        t += 0.033
+    assert out["state"] == "VERIFY"
+    # mouth_open_event → INGESTION_COMPLETE
+    out = fsm.update(roi, True, [], [], 0.0, t, mouth_open_event=True)
     assert out["state"] == "INGESTION_COMPLETE"
     assert out["final_decision"] == "O"
     assert out.get("ingestion_time_sec") is not None
 
 
 def test_fsm_timeout_hand_to_cup():
-    cfg = IngestionConfig(hand_min_frames=2, cup_min_frames=2, max_wait_hand_to_cup_sec=0.2, drinking_fps=30)
+    cfg = IngestionConfig(hand_min_frames=2, cup_min_frames=2, max_wait_hand_to_cup_sec=0.2)
     fsm = IngestionSequenceDetector(config=cfg)
     roi = _roi()
     hand = _hand_overlapping_roi()

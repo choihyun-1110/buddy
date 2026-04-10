@@ -1,0 +1,58 @@
+# 데이터셋 설정
+data:
+  # 원본 데이터 경로
+  source_path: "../MFDS_AI_Development_Pill_Image_Dataset"
+  
+  # 처리된 데이터 경로
+  processed_path: "./dataset"
+  
+  # 클래스 정의 (폴더명 기반)
+  classes:
+    - "29002"
+    - "34342" 
+    - "37990"
+    - "39916"
+    - "40122"
+    - "40720"
+    - "40767"
+    - "40792"
+    - "40837"
+    - "40949"
+    - "40953"
+    - "40990"
+    - "40991"
+    - "41097"
+    - "41107"
+    - "41169"
+    - "41170"
+    - "41172"
+    - "41207"
+    - "41225"
+    - "41327"
+    - "41344"
+  
+  # 데이터 분할 비율
+  split_ratio:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  
+  # 이미지 크기
+  image_size: 640
+  
+  # 데이터 증강 설정
+  augmentation:
+    # 다중 알약 합성 설정
+    multi_pill_synthesis:
+      enabled: true
+      max_pills_per_image: 5
+      min_pills_per_image: 2
+      background_variations: 10
+    
+    # 기본 증강 설정
+    basic_augmentation:
+      rotation: 15
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1

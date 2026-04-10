@@ -89,6 +89,7 @@ class IngestionSequenceDetector:
 
         self._cup_overlap_frames: int = 0
         self._cup_at_mouth_frames: int = 0
+        self._cup_peak_frames: int = 0    # 리셋 전 최대값 보존
         self._cup_missing_frames: int = 0
 
         self._consecutive_invalid: int = 0
@@ -151,6 +152,7 @@ class IngestionSequenceDetector:
             self._cup_overlap_frames += 1
             if self.state == "CUP_TO_MOUTH":
                 self._cup_at_mouth_frames += 1
+                self._cup_peak_frames = max(self._cup_peak_frames, self._cup_at_mouth_frames)
         else:
             self._cup_missing_frames += 1
             if self._cup_missing_frames > cfg.cup_missing_tolerance:
@@ -192,10 +194,10 @@ class IngestionSequenceDetector:
             need = cfg.cup_contact_duration_frames
             min_before = max(3, need // 3)
             cup_timeout = (current_time_sec - (self._cup_contact_time or 0)) > cfg.max_cup_to_swallow_sec
-            cup_enough = self._cup_at_mouth_frames >= need
+            cup_enough = self._cup_peak_frames >= need   # 리셋 전 최대값으로 판정
             cup_left = self._cup_missing_frames > cfg.cup_missing_tolerance and self._cup_overlap_frames == 0
 
-            if swallow_event and self._cup_at_mouth_frames >= min_before:
+            if swallow_event and self._cup_peak_frames >= min_before:
                 self.state = "VERIFY"
                 self._verify_start_time = current_time_sec
                 return self._event("swallow detected → verify")
@@ -206,7 +208,7 @@ class IngestionSequenceDetector:
                 return self._event("cup left mouth → verify")
 
             if cup_timeout:
-                if self._cup_at_mouth_frames >= min_before:
+                if self._cup_peak_frames >= min_before:
                     self.state = "VERIFY"
                     self._verify_start_time = current_time_sec
                     return self._event("cup timeout → verify")
