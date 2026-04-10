@@ -3,6 +3,8 @@
 import argparse
 import json
 import sys
+import time
+from collections import deque
 from pathlib import Path
 
 import cv2
@@ -13,6 +15,7 @@ from pill_ingestion import HandTracker, CupDetector, IngestionSequenceDetector
 from pill_ingestion.ingestion_fsm import IngestionConfig
 from pill_ingestion.hand_visualizer import draw_all_hands
 from pill_ingestion.swallow_estimator import SwallowEstimator
+from pill_ingestion.alert_manager import AlertManager
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_VIDEO = PROJECT_ROOT / "dataset" / "taking_phill" / "IMG_0963.MOV"
@@ -87,6 +90,9 @@ def main():
     parser.add_argument("--cup-conf", type=float, default=None, metavar="FLOAT",
                         help="Cup detection confidence threshold (default 0.05)")
     parser.add_argument("--save", type=str, default="", metavar="PATH", help="Save output video")
+    parser.add_argument("--patient-id", type=str, default="unknown", metavar="ID", help="Patient ID for alerts")
+    parser.add_argument("--slack-webhook", type=str, default="", metavar="URL", help="Slack webhook URL")
+    parser.add_argument("--benchmark", action="store_true", help="Show per-component timing and Pi FPS estimate")
     args = parser.parse_args()
 
     # ── 카메라/영상 열기 ─────────────────────────────────────────
@@ -150,6 +156,26 @@ def main():
 
     fsm = IngestionSequenceDetector(config=IngestionConfig(cup_required=not args.no_cup))
 
+    # YOLO/Hand 스킵: 매 N프레임마다 실행, 그 사이엔 마지막 결과 재사용
+    _CUP_SKIP  = 3   # YOLO: 3프레임마다
+    _HAND_SKIP = 2   # Hand: 2프레임마다 (FSM 정확도 유지하며 부하 절반)
+    _cup_frame_count  = 0
+    _hand_frame_count = 0
+    _cached_cup_out:  dict = {"cup_bbox": [], "cup_conf": 0.0}
+    _cached_hand_out: dict = {"hand_bboxes": [], "hand_confs": [], "hand_count": 0,
+                               "hand_landmarks": [], "handedness": []}
+
+    # Benchmark
+    _PI_FACTOR = 9.0   # Pi 4 vs Mac 성능 비율 (실측 기반 추정)
+    _bm: dict[str, deque] = {k: deque(maxlen=60) for k in ("facemesh", "hand", "cup", "fsm", "total")}
+    _frame_times: deque = deque(maxlen=60)
+    _last_frame_t = time.perf_counter()
+
+    alerter = AlertManager(
+        patient_id=args.patient_id,
+        webhook_url=args.slack_webhook or None,
+    )
+
     try:
         while True:
             if not paused:
@@ -162,16 +188,31 @@ def main():
                         continue
                     break
 
+                t0 = time.perf_counter()
                 mouth_out: MouthROIResult = mouth_tracker.process(frame)
-                hand_out = hand_tracker.update(frame)
-                cup_out = cup_detector.update(
-                    frame,
-                    mouth_roi=mouth_out.get("mouth_roi") if mouth_out.get("roi_valid") else None,
-                )
+                _bm["facemesh"].append((time.perf_counter() - t0) * 1000)
+
+                t0 = time.perf_counter()
+                _hand_frame_count += 1
+                if _hand_frame_count % _HAND_SKIP == 0:
+                    _cached_hand_out = hand_tracker.update(frame)
+                hand_out = _cached_hand_out
+                _bm["hand"].append((time.perf_counter() - t0) * 1000)
+
+                t0 = time.perf_counter()
+                _cup_frame_count += 1
+                if _cup_frame_count % _CUP_SKIP == 0:
+                    _cached_cup_out = cup_detector.update(
+                        frame,
+                        mouth_roi=mouth_out.get("mouth_roi") if mouth_out.get("roi_valid") else None,
+                    )
+                cup_out = _cached_cup_out
+                _bm["cup"].append((time.perf_counter() - t0) * 1000)
 
                 prev_state = fsm.state
                 swallow_res = swallow_est.update(mouth_out.get("lip_landmarks") or [])
 
+                t0 = time.perf_counter()
                 state = fsm.update(
                     mouth_roi=mouth_out["mouth_roi"],
                     roi_valid=mouth_out.get("roi_valid", True),
@@ -183,6 +224,15 @@ def main():
                     swallow_score=swallow_res.swallow_score,
                     mouth_open_event=swallow_res.mouth_open_event,
                 )
+
+                _bm["fsm"].append((time.perf_counter() - t0) * 1000)
+
+                now = time.perf_counter()
+                _bm["total"].append(sum(
+                    _bm[k][-1] for k in ("facemesh", "hand", "cup", "fsm") if _bm[k]
+                ))
+                _frame_times.append(now - _last_frame_t)
+                _last_frame_t = now
 
                 # CUP_TO_MOUTH 진입 시 SwallowEstimator 리셋
                 if prev_state != "CUP_TO_MOUTH" and fsm.state == "CUP_TO_MOUTH":
@@ -204,6 +254,14 @@ def main():
                     )
 
                 if state.get("event_triggered"):
+                    alerter.on_fsm_event(
+                        state=fsm.state,
+                        prev_state=prev_state,
+                        time_sec=time_sec,
+                        message=state.get("message", ""),
+                    )
+
+                if state.get("event_triggered"):
                     if log_file:
                         log_file.write(json.dumps({
                             "t": round(time_sec, 3),
@@ -218,6 +276,31 @@ def main():
                     if state.get("final_decision") == "O":
                         print(f"[Ingestion complete] elapsed: {state.get('ingestion_time_sec', 0):.1f}s")
 
+                # Benchmark overlay
+                if args.benchmark and not args.no_debug and len(_frame_times) > 1:
+                    avg_frame_ms = (sum(_frame_times) / len(_frame_times)) * 1000
+                    avg_fps = 1000 / avg_frame_ms
+                    fm     = sum(_bm["facemesh"]) / max(len(_bm["facemesh"]), 1)
+                    hd     = sum(_bm["hand"])     / max(len(_bm["hand"]), 1)
+                    cp     = sum(_bm["cup"])      / max(len(_bm["cup"]), 1)
+                    fsm_ms = sum(_bm["fsm"])      / max(len(_bm["fsm"]), 1)
+                    infer  = fm + hd + cp + fsm_ms
+                    overhead = max(0.0, avg_frame_ms - infer)  # imshow, decode 등
+                    pi_ms  = infer * _PI_FACTOR + overhead * 2  # 오버헤드는 2배만
+                    pi_fps = 1000 / pi_ms if pi_ms > 0 else 0
+                    h = frame.shape[0]
+                    lines = [
+                        f"Mac FPS: {avg_fps:.1f}   Pi est: {pi_fps:.1f} FPS",
+                        f"FaceMesh : {fm:.1f}ms  -> Pi ~{fm*_PI_FACTOR:.0f}ms",
+                        f"Hand     : {hd:.1f}ms  -> Pi ~{hd*_PI_FACTOR:.0f}ms",
+                        f"YOLO cup : {cp:.1f}ms  -> Pi ~{cp*_PI_FACTOR:.0f}ms",
+                        f"Infer    : {infer:.1f}ms  -> Pi ~{infer*_PI_FACTOR:.0f}ms",
+                    ]
+                    for i, ln in enumerate(lines):
+                        y = h - 20 - (len(lines) - 1 - i) * 20
+                        cv2.putText(frame, ln, (10, y),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 255, 200), 1, cv2.LINE_AA)
+
             if writer:
                 writer.write(frame)
             cv2.imshow("Pill Ingestion", frame)
@@ -228,10 +311,34 @@ def main():
                 paused = not paused
             elif key == ord("r"):
                 fsm.reset()
+                alerter.reset_session()
                 time_sec = 0.0
                 print("FSM reset")
 
     finally:
+        if args.benchmark and len(_frame_times) > 10:
+            avg_frame_ms = (sum(_frame_times) / len(_frame_times)) * 1000
+            avg_fps = 1000 / avg_frame_ms
+            fm     = sum(_bm["facemesh"]) / max(len(_bm["facemesh"]), 1)
+            hd     = sum(_bm["hand"])     / max(len(_bm["hand"]), 1)
+            cp     = sum(_bm["cup"])      / max(len(_bm["cup"]), 1)
+            fsm_ms = sum(_bm["fsm"])      / max(len(_bm["fsm"]), 1)
+            infer  = fm + hd + cp + fsm_ms
+            overhead = max(0.0, avg_frame_ms - infer)
+            pi_ms  = infer * _PI_FACTOR + overhead * 2
+            pi_fps = 1000 / pi_ms if pi_ms > 0 else 0
+            print("\n── Benchmark Summary ─────────────────────────────")
+            print(f"  Mac FPS      : {avg_fps:.1f}  (frame {avg_frame_ms:.1f}ms)")
+            print(f"  Pi4 est.     : {pi_fps:.1f} FPS  (~{pi_ms:.0f}ms/frame)")
+            print(f"  ┌ FaceMesh   : {fm:.1f}ms  → Pi ~{fm*_PI_FACTOR:.0f}ms")
+            print(f"  ├ Hand       : {hd:.1f}ms  → Pi ~{hd*_PI_FACTOR:.0f}ms")
+            print(f"  ├ YOLO cup   : {cp:.1f}ms  → Pi ~{cp*_PI_FACTOR:.0f}ms")
+            print(f"  └ FSM        : {fsm_ms:.2f}ms → Pi ~{fsm_ms*_PI_FACTOR:.1f}ms")
+            print(f"  Inference    : {infer:.1f}ms → Pi ~{infer*_PI_FACTOR:.0f}ms")
+            print(f"  Overhead     : {overhead:.1f}ms → Pi ~{overhead*2:.0f}ms (×2)")
+            print(f"  Target       : 5 FPS (200ms)  {'✅' if pi_fps >= 5 else '❌ not yet'}")
+            print("──────────────────────────────────────────────────")
+
         mouth_tracker.close()
         hand_tracker.close()
         if log_file:

@@ -37,3 +37,17 @@ mouth_roi_tracker/models/*.task
 # IDE
 .vscode/
 .idea/
+
+# 명세서/기획 문서 (내부용)
+gpt가써준명세서.md
+gemini가본명세서.md
+추가\ 명세서.md
+추가요구사항.md
+implementation_assumptions.md
+INGESTION_PROCESS.md
+SETUP.md
+
+# 임시 출력물
+output.mp4
+*.png
+29002_*
